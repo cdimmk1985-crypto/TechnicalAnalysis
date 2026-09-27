@@ -1,0 +1,136 @@
+---
+title: "BDA400 Assignment 2 - Technical Analysis using R (Preliminary Stage)"
+author: "Marwah Mahsal Khan"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+## Setup
+
+All the functions live in `stock_functions.R` so this file just loads them
+and runs them. `quantmod` and `TTR` get loaded inside that script.
+
+```{r load-functions}
+source("stock_functions.R")
+```
+
+## Portfolio
+
+The stock symbols are stored in `portfolio.txt`, one per line.
+
+```{r portfolio}
+symbols <- read_portfolio("portfolio.txt")
+symbols
+```
+
+## Importing the Data
+
+`load_stock_data()` reads `portfolio.txt` and downloads daily prices for each
+symbol from Yahoo Finance (Jan 1 - Dec 31, 2025). Each stock ends up as its
+own data frame inside a named list.
+
+```{r load-data}
+stocks <- load_stock_data("portfolio.txt", from = "2025-01-01", to = "2026-01-01")
+
+names(stocks)
+sapply(stocks, class)   # each one is a separate data frame
+sapply(stocks, nrow)    # number of trading days per stock
+```
+
+Structure of one of the data frames:
+
+```{r structure}
+str(stocks[[1]])
+```
+
+The data is also saved as CSV files in an `output/` folder.
+
+```{r save-data}
+save_stock_data(stocks)
+```
+
+## Displaying the Data
+
+### Historical data (last 10 trading days)
+
+Same layout as the Historical Data tab on Yahoo Finance, newest day first.
+
+```{r historical, results='asis'}
+for (sym in names(stocks)) {
+  cat("\n\n####", sym, "\n\n")
+  print(knitr::kable(display_historical(stocks[[sym]], sym, n = 10),
+                     align = "r"))
+}
+```
+
+### Quote summary
+
+A summary box like the one at the top of a Yahoo Finance stock page. "Period
+Range" is the lowest low and highest high over the whole year.
+
+```{r quote-summary, results='asis'}
+for (sym in names(stocks)) {
+  cat("\n\n####", sym, "\n\n")
+  print(knitr::kable(display_quote_summary(stocks[[sym]], sym)))
+}
+```
+
+## Statistics
+
+`calculate_statistics()` works on the daily closing price for each stock:
+mean, median, mode, standard deviation, min, max, and the latest 20-day and
+50-day simple moving averages. `calculate_all_statistics()` runs it on every
+stock and puts the results into one table.
+
+```{r statistics}
+stats <- calculate_all_statistics(stocks)
+knitr::kable(stats)
+```
+
+A few notes on how these are calculated:
+
+- **Mode** - base R doesn't have a mode function, and closing prices basically
+  never repeat to the exact cent, so prices are rounded to the nearest dollar
+  first and the most common value is taken.
+- **SD** - `sd()` gives the sample standard deviation (divides by n - 1).
+- **Moving averages** - `SMA()` from the TTR package. The value shown is from
+  the last trading day of the year.
+
+## Visualizations
+
+### Closing price with moving averages
+
+```{r price-ma, fig.width=8, fig.height=4.5}
+for (sym in names(stocks)) {
+  plot_price_with_ma(stocks[[sym]], sym)
+}
+```
+
+### Candlestick charts with volume (quantmod)
+
+```{r candlestick, fig.width=8, fig.height=5}
+for (sym in names(stocks)) {
+  plot_candlestick(stocks[[sym]], sym)
+}
+```
+
+### Relative performance of the whole portfolio
+
+Every stock starts at 100 on the first trading day so they can be compared on
+one chart.
+
+```{r normalized, fig.width=8, fig.height=4.5}
+plot_normalized(stocks)
+```
+
+## Session Info
+
+```{r session-info}
+sessionInfo()
+```
